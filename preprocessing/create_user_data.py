@@ -40,10 +40,24 @@ def parse_user(x):
     return series
 
 if __name__ == '__main__':
+    # order_id(订单唯一ID),user_id(用户唯一ID),eval_set(属于prior/train/test),order_number(在这个用户中下单的顺序),order_dow(星期几),order_hour_of_day,days_since_prior_order
+    # ID1, User1, prior, 1, 2, 08,
+    # ID2, User1, prior, 2, 3, 07, 15.0
+    # ID3, User1, train, 3, 3, 12, 21.0
     orders = pd.read_csv('../data/raw/orders.csv')
+
+    # order_id(订单唯一ID),product_id(产品唯一ID),add_to_cart_order(加入购物车的顺序),reordered(0/1)
+    # 1, 49302, 1, 1
+    # 1, 11109, 2, 1
+    # 1, 10246, 3, 0
     prior_products = pd.read_csv('../data/raw/order_products__prior.csv')
     train_products = pd.read_csv('../data/raw/order_products__train.csv')
-    order_products = pd.concat([prior_products, train_products], axis=0)
+    order_products = pd.concat([prior_products, train_products], axis=0)  # 简单按行合并prior和train
+
+    # product_id(产品唯一ID),product_name(),aisle_id,department_id
+    # 1, Chocolate Sandwich Cookies, 61, 19
+    # 2, All - Seasons Salt, 104, 13
+    # 3, Robust Golden Unsweetened Oolong Tea, 94, 7
     products = pd.read_csv('../data/raw/products.csv')
 
     df = orders.merge(order_products, how='left', on='order_id')
