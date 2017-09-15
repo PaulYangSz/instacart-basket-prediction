@@ -30,24 +30,25 @@ if __name__ == '__main__':
     labels = []
 
     longest = 0
-    for _, row in df.iterrows():
+    for _, row in df.iterrows():  # row的内容有：user_id，空格连接的order_id，空格连接的order的顺序，空格连接的订单周几，空格连接的订单小时，空格连接的订单间隔，
+                                  # 还有空格连接的商品s product_ids，aisle_ids department_ids reorders，以及eval_set
         if _ % 10000 == 0:
-            print _
+            print(_)
 
         user_id = row['user_id']
         eval_set = row['eval_set']
-        products = row['product_ids']
 
-        products, next_products = ' '.join(products.split()[:-1]), products.split()[-1]
+        products = row['product_ids']
+        products, next_products = ' '.join(products.split()[:-1]), products.split()[-1]  # 分割最后一个订单和之前订单的商品
 
         reorders = row['reorders']
-        reorders, next_reorders = ' '.join(reorders.split()[:-1]), reorders.split()[-1]
+        reorders, next_reorders = ' '.join(reorders.split()[:-1]), reorders.split()[-1]  # 分割最后一个订单和之前订单的reorders
 
-        product_set = set([int(j) for i in products.split() for j in i.split('_')])
-        next_product_set = set([int(i) for i in next_products.split('_')])
+        product_set = set([int(j) for i in products.split() for j in i.split('_')])  # 获取除了最后一个订单之外所有订单的商品set集合
+        next_product_set = set([int(i) for i in next_products.split('_')])  # 获取最后一个订单的商品set集合
 
-        orders = [map(int, i.split('_')) for i in products.split()]
-        reorders = [map(int, i.split('_')) for i in reorders.split()]
+        orders = [map(int, i.split('_')) for i in products.split()]  # 获取除了最后一个订单之外所有订单的商品的map
+        reorders = [map(int, i.split('_')) for i in reorders.split()]  # 获取除了最后一个订单之外所有订单的商品的list
         next_reorders = map(int, next_reorders.split('_'))
 
         for product_id in product_set:
