@@ -5,6 +5,9 @@ import pandas as pd
 
 
 if __name__ == '__main__':
+    """
+    基于商品的aisle_id构成一个含有过往信息的数据集
+    """
     df = pd.read_csv('../data/processed/user_data.csv')
 
     products = pd.read_csv('../data/raw/products.csv')
@@ -27,7 +30,7 @@ if __name__ == '__main__':
     longest = 0
     for _, row in df.iterrows():
         if _ % 10000 == 0:
-            print _
+            print(_)
 
         user_id = row['user_id']
         eval_set = row['eval_set']

@@ -11,6 +11,7 @@ if __name__ == '__main__':
     user_products = prior_products.merge(orders, how='left', on='order_id')
 
     counts = user_products.groupby(['user_id', 'product_id']).size().rename('count').reset_index()
+    # 得到了user_id、product_id以及对应的count的DataFrame
 
     if not os.path.isdir('data'):
         os.makedirs('data')

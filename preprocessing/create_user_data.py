@@ -38,7 +38,7 @@ def parse_user(x):  # x是按照user分组后的DataFrame，然后拍平成一�
     series['department_ids'] = ' '.join(parsed_orders['departments'].values.astype(str).tolist())
     series['reorders'] = ' '.join(parsed_orders['reorders'].values.astype(str).tolist())
 
-    series['eval_set'] = x['eval_set'].values[-1]  # 返回train或者test
+    series['eval_set'] = x['eval_set'].values[-1]  # 返回train或者test，标记为用户的类型
 
     return series
 
