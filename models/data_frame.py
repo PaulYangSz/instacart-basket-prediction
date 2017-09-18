@@ -45,6 +45,7 @@ class DataFrame(object):
         test_df = DataFrame(copy.copy(self.columns), [mat[test_idx] for mat in self.data])
         return train_df, test_df
 
+    # num_epochs是对全部行数轮多少次数，batch_size是每一轮中的每一个batch大小多少，shuffle是指在每一轮开始的时候是否shuffle，allow_smaller_final_batch是指每一轮最后一个batch数目不够时是否仍然返回使用
     def batch_generator(self, batch_size, shuffle=True, num_epochs=10000, allow_smaller_final_batch=False):
         epoch_num = 0
         while epoch_num < num_epochs:
