@@ -59,25 +59,30 @@ class nnmf(TFBaseModel):
         super(nnmf, self).__init__(**kwargs)
 
     def calculate_loss(self):
+        """
+        有两个矩阵，一个是W（和用户相关）一个是H（和商品相关），以及对应的列向量W_bias和H_bias
+        Returns:
+
+        """
         self.i = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于users的选择
         self.j = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于products的选择
         self.V_ij = tf.placeholder(dtype=tf.float32, shape=[None])  # 输入，对应count的值
 
-        self.W = tf.Variable(tf.truncated_normal([self.reader.num_users, self.rank]))  # 学习的参数，大小为num_users * rank的截断正态分布取值的tensor
-        self.H = tf.Variable(tf.truncated_normal([self.reader.num_products, self.rank]))  # 学习的参数，num_products * rank的截断正态分布取值的tensor
+        self.W = tf.Variable(tf.truncated_normal([self.reader.num_users, self.rank]))  # 学习的参数W，大小为num_users * rank的截断正态分布取值的tensor
+        self.H = tf.Variable(tf.truncated_normal([self.reader.num_products, self.rank]))  # 学习的参数H，num_products * rank的截断正态分布取值的tensor
         W_bias = tf.Variable(tf.truncated_normal([self.reader.num_users]))  # 学习的参数，大小为num_users的截断正态分布取值的tensor
         H_bias = tf.Variable(tf.truncated_normal([self.reader.num_products]))  # 学习的参数，大小为num_products的截断正态分布取值的tensor
 
-        global_mean = tf.Variable(0.0)
-        w_i = tf.gather(self.W, self.i)
-        h_j = tf.gather(self.H, self.j)
+        global_mean = tf.Variable(0.0)   #
+        w_i = tf.gather(self.W, self.i)  # 获得W的对应选择user的子集
+        h_j = tf.gather(self.H, self.j)  # 获得H的对应选择product的子集
 
-        w_bias = tf.gather(W_bias, self.i)
-        h_bias = tf.gather(H_bias, self.j)
-        interaction = tf.reduce_sum(w_i * h_j, reduction_indices=1)
-        preds = global_mean + w_bias + h_bias + interaction
+        w_bias = tf.gather(W_bias, self.i)  # 获得w_bias的对应选择user的子集
+        h_bias = tf.gather(H_bias, self.j)  # 获得h_bias的对应选择product的子集
+        interaction = tf.reduce_sum(w_i * h_j, reduction_indices=1)  # w和h的对应元素的乘积之后按行求和
+        preds = global_mean + w_bias + h_bias + interaction  # 这些列向量相加
 
-        rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(preds, self.V_ij)))
+        rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(preds, self.V_ij)))  # preds和实际count的差异平方的均值开方
 
         self.parameter_tensors = {
             'user_embeddings': self.W,
