@@ -24,8 +24,8 @@ class DataFrame(object):
         lengths = [mat.shape[0] for mat in data]
         assert len(set(lengths)) == 1, 'all matrices in data must have same first dimension'
 
-        self.length = lengths[0]
-        self.columns = columns
+        self.length = lengths[0]  # data的行数，因为data的每个矩阵行数都是一致的
+        self.columns = columns  # data每个矩阵的名字
         self.data = data
         self.dict = dict(zip(self.columns, self.data))
         self.idx = np.arange(self.length)
@@ -45,7 +45,9 @@ class DataFrame(object):
         test_df = DataFrame(copy.copy(self.columns), [mat[test_idx] for mat in self.data])
         return train_df, test_df
 
-    # num_epochs是对全部行数轮多少次数，batch_size是每一轮中的每一个batch大小多少，shuffle是指在每一轮开始的时候是否shuffle，allow_smaller_final_batch是指每一轮最后一个batch数目不够时是否仍然返回使用
+    # num_epochs是对全部行数轮多少次数，batch_size是每一轮中的每一个batch大小多少，shuffle是指在每一轮开始的时候是否shuffle，
+    # allow_smaller_final_batch是指每一轮最后一个batch数目不够时是否仍然返回使用
+    # 最后yield返回
     def batch_generator(self, batch_size, shuffle=True, num_epochs=10000, allow_smaller_final_batch=False):
         epoch_num = 0
         while epoch_num < num_epochs:
@@ -67,13 +69,13 @@ class DataFrame(object):
     def mask(self, mask):
         return DataFrame(copy.copy(self.columns), [mat[mask] for mat in self.data])
 
-    def __iter__(self):
+    def __iter__(self):  # 每一次iterator都返回(self.columns, self.data)
         return self.dict.items().__iter__()
 
     def __len__(self):
         return self.length
 
-    def __getitem__(self, key):
+    def __getitem__(self, key):  # 支持[]取值操作符，对于['col_name']返回对应的data，对于[int_index]返回各个data在这个index上的值，且做成Series返回
         if isinstance(key, str):
             return self.dict[key]
 

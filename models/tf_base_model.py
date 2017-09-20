@@ -70,12 +70,12 @@ class TFBaseModel(object):
         prediction_dir='predictions'
     ):
 
-        self.reader = reader
+        self.reader = reader  # 设置reader，来获得训练集和验证集，以及各自的batch的generator
         self.batch_size = batch_size
         self.num_training_steps = num_training_steps
         self.learning_rate = learning_rate
         self.optimizer = optimizer
-        self.grad_clip = grad_clip
+        self.grad_clip = grad_clip  # 限制每次梯度的值（Tensor）在每个单一变量梯度取值上的上下限
         self.regularization_constant = regularization_constant
         self.warm_start_init_step = warm_start_init_step
         self.early_stopping_steps = early_stopping_steps
@@ -96,9 +96,9 @@ class TFBaseModel(object):
         self.init_logging(self.log_dir)
         logging.info('\nnew run with parameters:\n{}'.format(pp.pformat(self.__dict__)))
 
-        self.graph = self.build_graph()
+        self.graph = self.build_graph()  # 返回tf.Graph().as_default()，并设置ema、loss的计算方法以及获得初始化的step（也就是计算loss的Optimizer），等等
         self.session = tf.Session(graph=self.graph)
-        print 'built graph'
+        print('built graph')
 
     def calculate_loss(self):
         raise NotImplementedError('subclass must implement this')
@@ -107,19 +107,19 @@ class TFBaseModel(object):
         with self.session.as_default():
 
             if self.warm_start_init_step:
-                self.restore(self.warm_start_init_step)
+                self.restore(self.warm_start_init_step)  # tf.train.Saver(max_to_keep=1).restore(self.session, model_path)
                 step = self.warm_start_init_step
             else:
-                self.session.run(self.init)
+                self.session.run(self.init)  # sess.run( tf.global_variables_initializer() )
                 step = 0
 
-            train_generator = self.reader.train_batch_generator(self.batch_size)
-            val_generator = self.reader.val_batch_generator(self.num_validation_batches*self.batch_size)
+            train_generator = self.reader.train_batch_generator(self.batch_size)  # 获得训练集上的一组batch大小的数据（包括i，j和v_ij）
+            val_generator = self.reader.val_batch_generator(self.num_validation_batches*self.batch_size)  # 获得验证集上的一组num_validation_batches*batch大小的数据（包括i，j和v_ij）
 
-            train_loss_history = deque(maxlen=self.loss_averaging_window)
+            train_loss_history = deque(maxlen=self.loss_averaging_window)  # 创建最大长度为loss_averaging_window的双向链表
             val_loss_history = deque(maxlen=self.loss_averaging_window)
 
-            best_validation_loss, best_validation_tstep = float('inf'), 0
+            best_validation_loss, best_validation_tstep = float('inf'), 0  # 记录最佳的验证集loss值，和对应最佳的step值
             restarts = 0
 
             while step < self.num_training_steps:
@@ -127,7 +127,7 @@ class TFBaseModel(object):
                 # validation evaluation
                 val_batch_df = val_generator.next()
                 val_feed_dict = {
-                    getattr(self, placeholder_name, None): data
+                    getattr(self, placeholder_name, None): data  # 比如在nnmf中，设置了self.i: data中的i（方便后面sess.run()）
                     for placeholder_name, data in val_batch_df if hasattr(self, placeholder_name)
                 }
 
@@ -216,7 +216,7 @@ class TFBaseModel(object):
             test_generator = self.reader.test_batch_generator(chunk_size)
             for i, test_batch_df in enumerate(test_generator):
                 if i % 100 == 0:
-                    print i*chunk_size
+                    print(i * chunk_size)
 
                 test_feed_dict = {
                     getattr(self, placeholder_name, None): data
@@ -291,18 +291,26 @@ class TFBaseModel(object):
         logging.getLogger().addHandler(logging.StreamHandler())
 
     def update_parameters(self, loss):
-        self.global_step = tf.Variable(0, trainable=False)
-        self.learning_rate_var = tf.Variable(0.0, trainable=False)
+        """
+        初始化参数：得到global_step=0, learning_rate_var=0.0(已经和optimizer绑定，等待后面输入learning_rate)，最重要的step用于对loss进行optimizer
+        Args:
+            loss:
 
-        if self.regularization_constant != 0:
+        Returns:
+
+        """
+        self.global_step = tf.Variable(0, trainable=False)
+        self.learning_rate_var = tf.Variable(0.0, trainable=False)  # 不同于self.learning_rate，这个变量是真正使用到optimizer中的，但是取值从self.learning_rate中来
+
+        if self.regularization_constant != 0:  # 如果正则参数不为0，那么就需要对loss的计算加上L2正则
             l2_norm = tf.reduce_sum([tf.sqrt(tf.reduce_sum(tf.square(param))) for param in tf.trainable_variables()])
             loss = loss + self.regularization_constant*l2_norm
 
-        optimizer = self.get_optimizer(self.learning_rate_var)
-        grads = optimizer.compute_gradients(loss)
-        clipped = [(tf.clip_by_value(g, -self.grad_clip, self.grad_clip), v_) for g, v_ in grads]
+        optimizer = self.get_optimizer(self.learning_rate_var)  # 得到tf.train的一个优化器,暂时lr的值为0.0
+        grads = optimizer.compute_gradients(loss)  # Compute gradients of `loss` for the variables in `var_list`. 返回A list of (gradient, variable) pairs. Variable is always present, butgradient can be `None`.
+        clipped = [(tf.clip_by_value(g, -self.grad_clip, self.grad_clip), v_) for g, v_ in grads]  # 把对应变量的梯度Tensor值做clip，防止梯度消失或者爆炸
 
-        step = optimizer.apply_gradients(clipped, global_step=self.global_step)
+        step = optimizer.apply_gradients(clipped, global_step=self.global_step)  # 得到一个Operation（Op），这样后续step.run()或者sess.run(fetches=step)时就可以更新变量值了
 
         if self.enable_parameter_averaging:
             maintain_averages_op = self.ema.apply(tf.trainable_variables())
@@ -332,12 +340,15 @@ class TFBaseModel(object):
 
     def build_graph(self):
         with tf.Graph().as_default() as graph:
+            # ExponentialMovingAverage 对每一个（待更新训练学习的）变量（variable）都会维护一个影子变量（shadow variable）。影子变量的初始值就是这个变量的初始值，
+            # shadow_variable = decay×shadow_variable + (1−decay)×variable
+            # 由上述公式可知， decay 控制着模型更新的速度，越大越趋于稳定。实际运用中，decay 一般会设置为十分接近 1 的常数（0.99或0.999）。
             self.ema = tf.train.ExponentialMovingAverage(decay=0.995)
 
             self.loss = self.calculate_loss()
-            self.update_parameters(self.loss)
+            self.update_parameters(self.loss)  # 得到self.step等等
 
-            self.saver = tf.train.Saver(max_to_keep=1)
+            self.saver = tf.train.Saver(max_to_keep=1)  # Saves and restores variables
             if self.enable_parameter_averaging:
                 self.saver_averaged = tf.train.Saver(self.ema.variables_to_restore(), max_to_keep=1)
 

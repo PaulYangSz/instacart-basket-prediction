@@ -12,10 +12,10 @@ from tf_base_model import TFBaseModel
 
 class DataReader(object):
     """
-    self.train_df  训练集，自定义的DataFrame类型
-    self.val_df  验证集，自定义的DataFrame类型
-    self.num_users
-    self.num_products
+    self.train_df  训练集，自定义的DataFrame类型，占所有data的0.9
+    self.val_df  验证集，自定义的DataFrame类型，占所有data的0.1
+    self.num_users  用户ID的最大值+1
+    self.num_products  商品ID的最大值+1
     """
 
     def __init__(self, data_dir):
@@ -23,7 +23,7 @@ class DataReader(object):
         data_cols = ['i', 'j', 'V_ij']
         data = [np.load(os.path.join(data_dir, '{}.npy'.format(i)), mmap_mode='r') for i in data_cols]
 
-        df = DataFrame(columns=data_cols, data=data)  # 这里的DataFrame不是pandas的，是作者自己定义的
+        df = DataFrame(columns=data_cols, data=data)  # 这里的DataFrame不是pandas的，是作者自己定义的，主要由colmumns（字符串list）和data（np.ndarray的list）组成
         self.train_df, self.val_df = df.train_test_split(train_size=0.9)
 
         print('train size', len(self.train_df))
@@ -61,7 +61,8 @@ class nnmf(TFBaseModel):
     def calculate_loss(self):
         """
         有两个矩阵，一个是W（和用户相关）一个是H（和商品相关），以及对应的列向量W_bias和H_bias
-        Returns:
+        预测值 = global_mean + w的bias + h的bias + (w * h)之后的按行求和，其中小写的变量都是对大写的变量代表的矩阵或者向量的取局部
+        Returns: 预测的值和实际count的值的均方根误差
 
         """
         self.i = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于users的选择
@@ -79,7 +80,7 @@ class nnmf(TFBaseModel):
 
         w_bias = tf.gather(W_bias, self.i)  # 获得w_bias的对应选择user的子集
         h_bias = tf.gather(H_bias, self.j)  # 获得h_bias的对应选择product的子集
-        interaction = tf.reduce_sum(w_i * h_j, reduction_indices=1)  # w和h的对应元素的乘积之后按行求和
+        interaction = tf.reduce_sum(w_i * h_j, reduction_indices=1)  # w和h的对应元素的直接相乘之后按行求和
         preds = global_mean + w_bias + h_bias + interaction  # 这些列向量相加
 
         rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(preds, self.V_ij)))  # preds和实际count的差异平方的均值开方
@@ -96,6 +97,7 @@ if __name__ == '__main__':
     base_dir = './'
 
     # 读取models\nnmf\prepare_nnmf_data.py产生的数据文件，得到含有train和val以及可以生成batch子集的类DataReader
+    # 其中train数据占比0.9, val数据占比0.1
     dr = DataReader(data_dir=os.path.join(base_dir, 'data'))
 
     nnmf = nnmf(
@@ -105,19 +107,19 @@ if __name__ == '__main__':
         prediction_dir=os.path.join(base_dir, 'predictions'),
         optimizer='adam',
         learning_rate=.005,
-        rank=25,
-        batch_size=4096,
-        num_training_steps=150000,
+        rank=25,  # 矩阵W和H的列数
+        batch_size=4096,  # 对于训练集和验证集，取一次batch的大小
+        num_training_steps=150000,  # 总共最大的训练次数
         early_stopping_steps=30000,
         warm_start_init_step=0,
         regularization_constant=0.0,
         keep_prob=1.0,
-        enable_parameter_averaging=False,
-        num_restarts=0,
+        enable_parameter_averaging=False,  # 是否使用tf.train.ExponentialMovingAverage
+        num_restarts=0,  # 重新start的num
         min_steps_to_checkpoint=5000,
         log_interval=200,
-        num_validation_batches=1,
-        loss_averaging_window=200,
+        num_validation_batches=1,  # 这个值*batch大小得到验证集上一次generator的数据量
+        loss_averaging_window=200,  # 记录train或者validation的loss历史窗长
 
     )
     nnmf.fit()
