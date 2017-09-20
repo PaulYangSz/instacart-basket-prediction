@@ -107,10 +107,10 @@ class TFBaseModel(object):
         with self.session.as_default():
 
             if self.warm_start_init_step:
-                self.restore(self.warm_start_init_step)  # tf.train.Saver(max_to_keep=1).restore(self.session, model_path)
+                self.restore(self.warm_start_init_step)  # tf.train.Saver(max_to_keep=1).restore(self.session, model_path) 读取指定步数的checkpoint文件，作为变量的初始化。
                 step = self.warm_start_init_step
             else:
-                self.session.run(self.init)  # sess.run( tf.global_variables_initializer() )
+                self.session.run(self.init)  # sess.run( tf.global_variables_initializer() )，使用代码中原始的变量初值做初始化。
                 step = 0
 
             train_generator = self.reader.train_batch_generator(self.batch_size)  # 获得训练集上的一组batch大小的数据（包括i，j和v_ij）
@@ -125,10 +125,10 @@ class TFBaseModel(object):
             while step < self.num_training_steps:
 
                 # validation evaluation
-                val_batch_df = val_generator.next()
-                val_feed_dict = {
+                val_batch_df = val_generator.next()  # 产生一个"自定义DataFrame类型"的一组val的batch
+                val_feed_dict = {  # 配置DataFrame的data作为对应的tf.placeholder的值
                     getattr(self, placeholder_name, None): data  # 比如在nnmf中，设置了self.i: data中的i（方便后面sess.run()）
-                    for placeholder_name, data in val_batch_df if hasattr(self, placeholder_name)
+                    for placeholder_name, data in val_batch_df if hasattr(self, placeholder_name)  # data由i, j和V_ij三个matrix组成
                 }
 
                 val_feed_dict.update({self.learning_rate_var: self.learning_rate})
@@ -137,15 +137,15 @@ class TFBaseModel(object):
                 if hasattr(self, 'is_training'):
                     val_feed_dict.update({self.is_training: False})
 
-                [val_loss] = self.session.run(
+                [val_loss] = self.session.run(  # 计算当前参数变量下在val数据集上的loss值
                     fetches=[self.loss],
                     feed_dict=val_feed_dict
                 )
                 val_loss_history.append(val_loss)
 
                 # train step
-                train_batch_df = train_generator.next()
-                train_feed_dict = {
+                train_batch_df = train_generator.next()  # 产生一个"自定义DataFrame类型"的一组train的batch
+                train_feed_dict = {  # 配置DataFrame的data作为对应的tf.placeholder的值
                     getattr(self, placeholder_name, None): data
                     for placeholder_name, data in train_batch_df if hasattr(self, placeholder_name)
                 }
@@ -156,49 +156,49 @@ class TFBaseModel(object):
                 if hasattr(self, 'is_training'):
                     train_feed_dict.update({self.is_training: True})
 
-                train_loss, _ = self.session.run(
+                train_loss, _ = self.session.run(  # 计算train数据集上的loss值，并使用step的优化器对变量进行优化
                     fetches=[self.loss, self.step],
                     feed_dict=train_feed_dict
                 )
                 train_loss_history.append(train_loss)
 
-                if step % self.log_interval == 0:
+                if step % self.log_interval == 0:  # 达到log间隔时计算loss值并保存步数信息
                     avg_train_loss = sum(train_loss_history) / len(train_loss_history)
                     avg_val_loss = sum(val_loss_history) / len(val_loss_history)
                     metric_log = (
-                        "[[step {:>8}]]     "
-                        "[[train]]     loss: {:<12}     "
+                        "[[step {:>8}]]     "  # >8是指至少固定占位8个，而且靠右对齐
+                        "[[train]]     loss: {:<12}     "  # <12是指至少固定占位12个，而且靠左对齐
                         "[[val]]     loss: {:<12}     "
-                    ).format(step, round(avg_train_loss, 8), round(avg_val_loss, 8))
+                    ).format(step, round(avg_train_loss, 8), round(avg_val_loss, 8))  # 按照小数点后8位四舍五入
                     logging.info(metric_log)
 
-                    if avg_val_loss < best_validation_loss:
+                    if avg_val_loss < best_validation_loss:  # 更新最佳val的loss值，和步数
                         best_validation_loss = avg_val_loss
                         best_validation_tstep = step
-                        if step > self.min_steps_to_checkpoint:
-                            self.save(step)
+                        if step > self.min_steps_to_checkpoint:  # TODO：这里貌似有个bug，如果在min_steps_to_checkpoint - log_interval达到最小值，那么就不会有save操作？
+                            self.save(step)  # 保存checkpoint文件
                             if self.enable_parameter_averaging:
                                 self.save(step, averaged=True)
 
-                    if step - best_validation_tstep > self.early_stopping_steps:
+                    if step - best_validation_tstep > self.early_stopping_steps:  # 距离上次更新最佳loss值过去了超过early_stopping_steps
 
-                        if self.num_restarts is None or restarts >= self.num_restarts:
+                        if self.num_restarts is None or restarts >= self.num_restarts:  # 超过了重试最大次数，停止fit
                             logging.info('best validation loss of {} at training step {}'.format(
                                 best_validation_loss, best_validation_tstep))
                             logging.info('early stopping - ending training.')
                             return
 
-                        if restarts < self.num_restarts:
+                        if restarts < self.num_restarts:  # 还可以继续fit，不过学习率要降低一半
                             self.restore(best_validation_tstep)
                             logging.info('halving learning rate')
                             self.learning_rate /= 2.0
-                            self.early_stopping_steps /= 2
-                            step = best_validation_tstep
+                            self.early_stopping_steps /= 2  # early_stopping_steps也减少一半
+                            step = best_validation_tstep  # 重置当前步数为最佳loss时的步数
                             restarts += 1
 
                 step += 1
 
-            if step <= self.min_steps_to_checkpoint:
+            if step <= self.min_steps_to_checkpoint:  # 达到了最大步数，但是没有early_stopping，也未曾保存过
                 best_validation_tstep = step
                 self.save(step)
                 if self.enable_parameter_averaging:
@@ -241,7 +241,7 @@ class TFBaseModel(object):
                 logging.info('saving {} with shape {} to {}'.format(tensor_name, np_tensor.shape, save_file))
                 np.save(save_file, np_tensor)
 
-        if hasattr(self, 'parameter_tensors'):
+        if hasattr(self, 'parameter_tensors'):  # 取出parameter_tensors定义的tensor变量，并将值保存到np的npy文件中
             for tensor_name, tensor in self.parameter_tensors.items():
                 np_tensor = tensor.eval(self.session)
 
@@ -263,11 +263,11 @@ class TFBaseModel(object):
     def restore(self, step=None, averaged=False):
         saver = self.saver_averaged if averaged else self.saver
         checkpoint_dir = self.checkpoint_dir_averaged if averaged else self.checkpoint_dir
-        if not step:
+        if not step:  # step为None或者0时，读取最后一次checkpoint的文件
             model_path = tf.train.latest_checkpoint(checkpoint_dir)
             logging.info('restoring model parameters from {}'.format(model_path))
             saver.restore(self.session, model_path)
-        else:
+        else:  # step为>0的数时，按照model_path的名字读取checkpoint的文件
             model_path = os.path.join(
                 checkpoint_dir, 'model{}-{}'.format('_avg' if averaged else '', step)
             )

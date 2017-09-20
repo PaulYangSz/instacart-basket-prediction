@@ -12,8 +12,8 @@ from tf_base_model import TFBaseModel
 
 class DataReader(object):
     """
-    self.train_df  训练集，自定义的DataFrame类型，占所有data的0.9
-    self.val_df  验证集，自定义的DataFrame类型，占所有data的0.1
+    self.train_df  训练集，自定义的DataFrame类型，由['i', 'j', 'V_ij']三个matrix构成，占所有data的0.9
+    self.val_df  验证集，自定义的DataFrame类型，由['i', 'j', 'V_ij']三个matrix构成，占所有data的0.1
     self.num_users  用户ID的最大值+1
     self.num_products  商品ID的最大值+1
     """
@@ -29,10 +29,10 @@ class DataReader(object):
         print('train size', len(self.train_df))
         print('val size', len(self.val_df))
 
-        self.num_users = df['i'].max() + 1  # TODO 有必要+1吗
-        self.num_products = df['j'].max() + 1  # 有必要+1吗
+        self.num_users = df['i'].max() + 1  # TODO 有必要+1吗, W的shape=[num_users, nnmf.rank]，完全有必要，因为train和val中的数值都是1开始，而W的索引是从0开始，方便后面做tf.gather()
+        self.num_products = df['j'].max() + 1  # 有必要+1吗, H的shape=[num_users, nnmf.rank]
 
-    def train_batch_generator(self, batch_size):
+    def train_batch_generator(self, batch_size):  # 取出batch大小的train数据集的子集
         return self.batch_generator(
             batch_size=batch_size,
             df=self.train_df,
@@ -53,6 +53,9 @@ class DataReader(object):
 
 
 class nnmf(TFBaseModel):
+    """
+    目的就是把用户IDs和商品IDs组成的以count为值的矩阵，做NNMF分解？
+    """
 
     def __init__(self, rank=25, **kwargs):
         self.rank = rank
@@ -65,9 +68,9 @@ class nnmf(TFBaseModel):
         Returns: 预测的值和实际count的值的均方根误差
 
         """
-        self.i = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于users的选择
-        self.j = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于products的选择
-        self.V_ij = tf.placeholder(dtype=tf.float32, shape=[None])  # 输入，对应count的值
+        self.i = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，命名i对应自定义DataFrame的dict中的key方便在fit()中定义feed_dict，对于users的选择
+        self.j = tf.placeholder(dtype=tf.int32, shape=[None])  # 输入，对于products的选择，shape=[batch, 1]，其中ID可重复
+        self.V_ij = tf.placeholder(dtype=tf.float32, shape=[None])  # 输入，对应count的值，shape=[batch, 1]
 
         self.W = tf.Variable(tf.truncated_normal([self.reader.num_users, self.rank]))  # 学习的参数W，大小为num_users * rank的截断正态分布取值的tensor
         self.H = tf.Variable(tf.truncated_normal([self.reader.num_products, self.rank]))  # 学习的参数H，num_products * rank的截断正态分布取值的tensor
@@ -75,8 +78,8 @@ class nnmf(TFBaseModel):
         H_bias = tf.Variable(tf.truncated_normal([self.reader.num_products]))  # 学习的参数，大小为num_products的截断正态分布取值的tensor
 
         global_mean = tf.Variable(0.0)   #
-        w_i = tf.gather(self.W, self.i)  # 获得W的对应选择user的子集
-        h_j = tf.gather(self.H, self.j)  # 获得H的对应选择product的子集
+        w_i = tf.gather(self.W, self.i)  # i的取值为可重复的user_id的index，获得W的对应可重复行的batch*rank大小的矩阵
+        h_j = tf.gather(self.H, self.j)  # j的取值为可重复的product_id的index，获得H的对应可重复行的batch*rank大小的矩阵
 
         w_bias = tf.gather(W_bias, self.i)  # 获得w_bias的对应选择user的子集
         h_bias = tf.gather(H_bias, self.j)  # 获得h_bias的对应选择product的子集
@@ -85,7 +88,7 @@ class nnmf(TFBaseModel):
 
         rmse = tf.sqrt(tf.reduce_mean(tf.squared_difference(preds, self.V_ij)))  # preds和实际count的差异平方的均值开方
 
-        self.parameter_tensors = {
+        self.parameter_tensors = {  # 这是后面在predict()中要将值保存到文件的tensor，其余的则在学习之后没有保存
             'user_embeddings': self.W,
             'product_embeddings': self.H
         }
@@ -115,11 +118,11 @@ if __name__ == '__main__':
         regularization_constant=0.0,
         keep_prob=1.0,
         enable_parameter_averaging=False,  # 是否使用tf.train.ExponentialMovingAverage
-        num_restarts=0,  # 重新start的num
-        min_steps_to_checkpoint=5000,
-        log_interval=200,
+        num_restarts=0,  # 当early_stopping_steps满足时，可以降低学习率继续重试的最大次数
+        min_steps_to_checkpoint=5000,  # 最少保存checkpoint的步数，而且必须是log_interval的整数倍，当它>num_training_steps时，在没有early_stopping时会最后保存，否则一定是
+        log_interval=200,  # 每隔200步就记录下当前的val上的loss平均值，来看是否要early_stopping或者更新最佳loss及步数。
         num_validation_batches=1,  # 这个值*batch大小得到验证集上一次generator的数据量
-        loss_averaging_window=200,  # 记录train或者validation的loss历史窗长
+        loss_averaging_window=200,  # 记录train或者validation的loss历史窗长，在这里这个值和log_interval相等，这样不会漏掉也不会重复计算
 
     )
     nnmf.fit()
