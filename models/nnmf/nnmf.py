@@ -54,7 +54,7 @@ class DataReader(object):
 
 class nnmf(TFBaseModel):
     """
-    目的就是把用户IDs和商品IDs组成的以count为值的矩阵，做NNMF分解？
+    目的就是把用户IDs和商品IDs组成的以count为值的矩阵，做NNMF分解？最后得到两个矩阵W和H，其中W大小是[用户ID数+1，rank]，H大小是[商品ID数+1，rank]
     """
 
     def __init__(self, rank=25, **kwargs):
@@ -127,4 +127,4 @@ if __name__ == '__main__':
     )
     nnmf.fit()
     nnmf.restore()
-    nnmf.predict()
+    nnmf.predict()  # 最终得到W[user_id.max + 1, rank=25]和H[product_id.max + 1, rank=25]两个矩阵的数据文件，其中W和H的元素相乘再按行相加后再加上bias接近count的值。
