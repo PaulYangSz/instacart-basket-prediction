@@ -54,8 +54,8 @@ class sgns(TFBaseModel):
         super(sgns, self).__init__(**kwargs)
 
     def calculate_loss(self):
-        self.x = tf.placeholder(dtype=tf.int32, shape=[None])  # x的输入
-        self.y = tf.placeholder(dtype=tf.int32, shape=[None])  # y的输入
+        self.x = tf.placeholder(dtype=tf.int32, shape=[None])  # x的输入，一次订单中商品y的附近商品ID
+        self.y = tf.placeholder(dtype=tf.int32, shape=[None])  # y的输入，固定商品ID的值
 
         self.embeddings = tf.Variable(
             tf.random_uniform([self.reader.num_products, self.embedding_dim], -1.0, 1.0)  # [df['x'].max()+1, 25]
@@ -72,14 +72,15 @@ class sgns(TFBaseModel):
                                                                   # 当第一个入参是多个Tensor的list时，可以按照partition_strategy并行lookup，
         # 对于默认的'mod' strategy来说，假设第一个入参是[t1, t2, t3, ...]，那么相当于把这个Tensor列表按照如下方式展开成一个Tensor，然后再按照ids进行索引。
         # 展开成：t1[0], t2[0], t3[0], t1[1], t2[1], t3[1], ... ,这样结构的一个Tensor
-        sampled_values = tf.nn.fixed_unigram_candidate_sampler(
+        sampled_values = tf.nn.fixed_unigram_candidate_sampler(  # Samples a set of classes using the provided (fixed) base distribution.
+            # 这里是指，对于y来说，每次只有一个值是正确的，然后在num_products的范围内采样negative_samples个负采样出来
             true_classes=tf.cast(tf.reshape(self.y, (-1, 1)), tf.int64),
             num_true=1,
             num_sampled=self.negative_samples,
             unique=True,
             range_max=self.reader.num_products,
             distortion=0.75,
-            unigrams=self.reader.product_dist
+            unigrams=self.reader.product_dist  # 给出了y的各个值的统计个数，也就是分布情况
         )
 
         loss = tf.reduce_mean(
