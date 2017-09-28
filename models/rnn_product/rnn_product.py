@@ -34,16 +34,16 @@ class DataReader(object):
             'label'
         ]
         data = [np.load(os.path.join(data_dir, '{}.npy'.format(i)), mmap_mode='r') for i in data_cols]
-        self.test_df = DataFrame(columns=data_cols, data=data)
+        self.test_df = DataFrame(columns=data_cols, data=data)  # test_df是全部数据
 
-        print self.test_df.shapes()
-        print 'loaded data'
+        print(self.test_df.shapes())
+        print('loaded data')
 
         self.train_df, self.val_df = self.test_df.train_test_split(train_size=0.9)
 
-        print 'train size', len(self.train_df)
-        print 'val size', len(self.val_df)
-        print 'test size', len(self.test_df)
+        print('train size', len(self.train_df))
+        print('val size', len(self.val_df))
+        print('test size', len(self.test_df))
 
     def train_batch_generator(self, batch_size):
         return self.batch_generator(
@@ -67,12 +67,12 @@ class DataReader(object):
         return self.batch_generator(
             batch_size=batch_size,
             df=self.test_df,
-            shuffle=False,
+            shuffle=False,  # test数据不进行shuffle
             num_epochs=1,
             is_test=True
         )
 
-    def batch_generator(self, batch_size, df, shuffle=True, num_epochs=10000, is_test=False):
+    def batch_generator(self, batch_size, df, shuffle=True, num_epochs=10000, is_test=False):  # 获得batch后进行滚动
         batch_gen = df.batch_generator(batch_size, shuffle=shuffle, num_epochs=num_epochs, allow_smaller_final_batch=is_test)
         for batch in batch_gen:
             batch['order_dow_history'] = np.roll(batch['order_dow_history'], -1, axis=1)
@@ -102,12 +102,12 @@ class rnn(TFBaseModel):
         loss = sequence_log_loss(self.next_is_ordered, preds, self.history_length, 100)
         return loss
 
-    def get_input_sequences(self):
+    def get_input_sequences(self):  # 构造一个Tensor作为接下来的输入
         self.user_id = tf.placeholder(tf.int32, [None])
         self.product_id = tf.placeholder(tf.int32, [None])
         self.aisle_id = tf.placeholder(tf.int32, [None])
         self.department_id = tf.placeholder(tf.int32, [None])
-        self.is_none = tf.placeholder(tf.int32, [None])
+        self.is_none = tf.placeholder(tf.int32, [None])  # batch_generator中得到
         self.history_length = tf.placeholder(tf.int32, [None])
 
         self.is_ordered_history = tf.placeholder(tf.int32, [None, 100])
@@ -120,13 +120,13 @@ class rnn(TFBaseModel):
         self.order_number_history = tf.placeholder(tf.int32, [None, 100])
         self.product_name = tf.placeholder(tf.int32, [None, 30])
         self.product_name_length = tf.placeholder(tf.int32, [None])
-        self.next_is_ordered = tf.placeholder(tf.int32, [None, 100])
+        self.next_is_ordered = tf.placeholder(tf.int32, [None, 100])  # batch_generator中得到, 是计算最终log loss的真实y
 
         self.keep_prob = tf.placeholder(tf.float32)
         self.is_training = tf.placeholder(tf.bool)
 
         # product data
-        product_embeddings = tf.get_variable(
+        product_embeddings = tf.get_variable(  # 可根据 name 值，返回该变量，如果该 name 不存在的话，则会进行创建
             name='product_embeddings',
             shape=[50000, self.lstm_size],
             dtype=tf.float32
@@ -240,11 +240,11 @@ if __name__ == '__main__':
         prediction_dir=os.path.join(base_dir, 'predictions'),
         optimizer='adam',
         learning_rate=.001,
-        lstm_size=300,
-        dilations=[2**i for i in range(6)],
-        filter_widths=[2]*6,
-        skip_channels=64,
-        residual_channels=128,
+        lstm_size=300,  # ???
+        dilations=[2**i for i in range(6)],  #
+        filter_widths=[2]*6,  #
+        skip_channels=64,  #
+        residual_channels=128,  #
         batch_size=128,
         num_training_steps=200000,
         early_stopping_steps=30000,

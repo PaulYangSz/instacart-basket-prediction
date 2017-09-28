@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-def pad_1d(array, max_len):
+def pad_1d(array, max_len):  # 对于max_len，返回长度=max_len的，其中如果长度不足则补零，超过则截断
     array = array[:max_len]
     length = len(array)
     padded = array + [0]*(max_len - len(array))
@@ -13,8 +13,8 @@ def pad_1d(array, max_len):
 
 
 def make_word_idx(product_names):
-    words = [word for name in product_names for word in name.split()]
-    word_counts = Counter(words)
+    words = [word for name in product_names for word in name.split()]  # 把商品名拆分成单词
+    word_counts = Counter(words)  # 构建word: 计数
 
     max_id = 1
     word_idx = {}
@@ -25,7 +25,7 @@ def make_word_idx(product_names):
             word_idx[word] = max_id
             max_id += 1
 
-    return word_idx
+    return word_idx  # 构建word -> idx的字典，其中计数<10的idx为0，计数>=10的word的idx从1开始递增
 
 
 def encode_text(text, word_idx):
@@ -33,16 +33,16 @@ def encode_text(text, word_idx):
 
 
 if __name__ == '__main__':
-    product_data = pd.read_csv('../../data/processed/product_data.csv')
+    product_data = pd.read_csv('../../data/processed/product_data.csv')  # 按照每行用户的数据展开，包含用户最后一个订单之前的所有订单中的商品set情况
     product_data['product_name'] = product_data['product_name'].map(lambda x: x.lower())
 
-    product_df = pd.read_csv('../../data/raw/products.csv')
+    product_df = pd.read_csv('../../data/raw/products.csv')  # product_id(产品唯一ID),product_name(商品名称),aisle_id,department_id
     product_df['product_name'] = product_df['product_name'].map(lambda x: x.lower())
 
     word_idx = make_word_idx(product_df['product_name'].tolist())
     product_data['product_name_encoded'] = product_data['product_name'].map(lambda x: encode_text(x, word_idx))
 
-    num_rows = len(product_data)
+    num_rows = len(product_data)  # （每个用户之前订单的商品ID的set然后+1） * 用户个数
 
     user_id = np.zeros(shape=[num_rows], dtype=np.int32)
     product_id = np.zeros(shape=[num_rows], dtype=np.int32)
@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     for i, row in product_data.iterrows():
         if i % 10000 == 0:
-            print i, num_rows
+            print(i, num_rows)
 
         user_id[i] = row['user_id']
         product_id[i] = row['product_id']

@@ -47,6 +47,11 @@ class DataReader(object):  # 读取数据x和y，然后将这两列数据划分t
 
 
 class sgns(TFBaseModel):
+    """
+    Word2Vec的分布式假设，就是处于相似上下文中的词具有相似的含义
+    数据x和y可以看做是商品ID的语料库
+    x和y的数据表示对于y来说x就是附近的上下文，然后生成每个商品的词向量，也就是ID2Vector
+    """
 
     def __init__(self, embedding_dim=25, negative_samples=100, **kwargs):
         self.embedding_dim = embedding_dim
@@ -74,14 +79,14 @@ class sgns(TFBaseModel):
         # 展开成：t1[0], t2[0], t3[0], t1[1], t2[1], t3[1], ... ,这样结构的一个Tensor
         sampled_values = tf.nn.fixed_unigram_candidate_sampler(  # Samples a set of classes using the provided (fixed) base distribution.
             # 这里是指，对于y来说，每次只有一个值是正确的，然后在num_products的范围内采样negative_samples个负采样出来
-            true_classes=tf.cast(tf.reshape(self.y, (-1, 1)), tf.int64),
-            num_true=1,
-            num_sampled=self.negative_samples,
+            true_classes=tf.cast(tf.reshape(self.y, (-1, 1)), tf.int64),  # 目标类别[batch_size, num_true]
+            num_true=1,  # 每个训练样本中的目标类别个数
+            num_sampled=self.negative_samples,  # 随机采样的个数
             unique=True,
-            range_max=self.reader.num_products,
+            range_max=self.reader.num_products,  # 可能的类别个数，这里是数据x中的商品ID最大值+1
             distortion=0.75,
-            unigrams=self.reader.product_dist  # 给出了y的各个值的统计个数，也就是分布情况
-        )
+            unigrams=self.reader.product_dist  # 给出了训练集的x中的各个值的统计个数，也就是分布情况
+        )  # 得到一个三元Tuple（sampled_candidates([num_sampled]), true_expected_count(shape=true_classes), sampled_expected_count(shape=sampled_candidates)）
 
         loss = tf.reduce_mean(
             tf.nn.nce_loss(
@@ -92,7 +97,7 @@ class sgns(TFBaseModel):
                 num_sampled=self.negative_samples,
                 num_classes=self.reader.num_products,
                 sampled_values=sampled_values
-            )
+            )  # 得到A batch_size 1-D tensor of per-example NCE losses.
         )
 
         self.parameter_tensors = {

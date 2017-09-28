@@ -120,6 +120,7 @@ def time_distributed_dense_layer(inputs, output_units, bias=True, activation=Non
 def dense_layer(inputs, output_units, bias=True, activation=None, batch_norm=None, dropout=None,
                 scope='dense-layer', reuse=False):
     """
+    对输入的inputs矩阵进行降维，使得output = tf.matmul(inputs, W) + b
     Applies a dense layer to a 2D tensor of shape [batch_size, input_units]
     to produce a tensor of shape [batch_size, output_units].
 
