@@ -210,7 +210,7 @@ class TFBaseModel(object):
         if not os.path.isdir(self.prediction_dir):
             os.makedirs(self.prediction_dir)
 
-        if hasattr(self, 'prediction_tensors'):
+        if hasattr(self, 'prediction_tensors'):  # 使用训练后的模型对self.prediction_tensors中的Tensor进行计算得到预测值，输入是self.reader.test_batch_generator
             prediction_dict = {tensor_name: [] for tensor_name in self.prediction_tensors}
 
             test_generator = self.reader.test_batch_generator(chunk_size)
